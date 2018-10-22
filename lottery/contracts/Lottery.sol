@@ -31,7 +31,7 @@ contract Lottery {
     }
 
     function enter() public payable {
-        require(msg.value > .001 ether);
+        require(msg.value > .001 ether, "The amount of ethereum cannot be lower than 0.001");
         players.push(msg.sender);
         board.push(Board({
             player : msg.sender,
@@ -50,11 +50,13 @@ contract Lottery {
     }
 
     function pickWinner() public restricted {
-        uint index = random() % players.length;
+        uint index = random() % getPlayers().length;
         players[index].transfer(this.balance);
         winner = players[index];
         hasWon = true;
         players = new address[](0);
+        delete board;
+        delete users;
     }
 
     function getBoardLength() public view returns (uint){
@@ -82,7 +84,7 @@ contract Lottery {
     }
 
     modifier restricted(){
-        require(msg.sender == manager);
+        require(msg.sender == manager, "Only the manager can pick winner");
         _;
     }
 }

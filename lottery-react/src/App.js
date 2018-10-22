@@ -14,8 +14,8 @@ class App extends Component {
       value : '',
       message : '',
       hasWon : true,
-      boardLength : 0,
-      userLength : 0
+      users : [],
+      boards :[]
     };
   }
 
@@ -29,7 +29,14 @@ class App extends Component {
     let balance = await web3.eth.getBalance(lottery.options.address);
     balance = web3.utils.fromWei(balance, 'ether');
 
-    this.setState({manager, players, balance, hasWon, userLength, boardLength});
+    App.getUsers(userLength).then(result => this.setState({
+      users : result
+    }));
+    App.getBoard(boardLength).then(result => this.setState({
+      boards : result
+    }));
+
+    this.setState({manager, players, balance, hasWon});
   }
 
   onSubmit = async event => {
@@ -37,13 +44,23 @@ class App extends Component {
 
     const accounts = await web3.eth.getAccounts();
     this.setState({ message : 'Waiting for transaction...' });
-
-    await lottery.methods.enter().send({
-      from : accounts[0],
-      value : web3.utils.toWei(this.state.value,'ether')
-    });
-
-    this.setState({ message : 'You are now playing!' });
+    let existed = false;
+    let players = this.state.players;
+    for(let i = 0; i < players.length; i++){
+      if(players[i] === accounts[0]){
+        existed = true;
+        break;
+      }
+    }
+    if(!existed){
+      await lottery.methods.enter().send({
+        from : accounts[0],
+        value : web3.utils.toWei(this.state.value,'ether')
+      });
+      this.setState({ message : 'You are now playing!' });
+    } else{
+      this.setState({ message : 'You have already entered the game!' });
+    }
   };
 
   onClick = async () => {
@@ -51,22 +68,100 @@ class App extends Component {
 
     this.setState({ message : 'Waiting for transaction' });
 
-    await lottery.methods.pickWinner.send({
+    await lottery.methods.pickWinner().send({
       from : accounts[0]
     });
 
     this.setState({ message : 'A winner has been picked'});
   };
 
+  static async getUsers(userLength){
+    const users = [];
+    if(userLength > 0){
+      for (let i = 0; i < userLength; i++){
+        let user = await lottery.methods.getUser(i).call();
+        users.push(
+            {
+              name : user[0],
+              addr : user[1],
+              roles : user[2],
+              rights : user[3]
+            });
+      }
+      return users;
+    }
+  }
+
+  static async getBoard(boardLength){
+    let boardObj = [];
+    if(boardLength > 0){
+      for(let i = 0; i < boardLength; i++){
+        let board = await lottery.methods.getBoardAt(i).call();
+        boardObj.push({
+          player : board[0],
+          amount : web3.utils.fromWei(board[1],'ether')
+        });
+      }
+    }
+    return boardObj;
+  }
+
   render() {
-    web3.eth.getAccounts().then(console.log);
-    console.log(this.state.boardLength);
+    web3.eth.getAccounts().then();
+    const board = this.state.boards.map((item) => {
+      return (
+        <tr key={item.player}>
+          <td>{item.player}</td>
+          <td>{item.amount} ether</td>
+        </tr>
+      );
+    });
+
+    const users = this.state.users.map((item) => {
+      return (
+          <tr key={item.addr}>
+            <td>{item.name}</td>
+            <td>{item.addr}</td>
+            <td>{item.roles}</td>
+            <td>{item.rights}</td>
+          </tr>
+      );
+    });
+
     return (
       <div>
         <h2>Lottery Contract</h2>
         <p>This contract is managed by {this.state.manager}</p>
         <p>There are currently {this.state.players.length} people competing to win about {this.state.balance} ether</p>
         <hr/>
+
+        <p>Current Board : </p>
+        <table>
+          <thead>
+            <tr>
+              <td>Player's address</td>
+              <td>Amount</td>
+            </tr>
+          </thead>
+          <tbody>
+            {board}
+          </tbody>
+        </table>
+        <p>Current Users : </p>
+        <table>
+          <thead>
+          <tr>
+            <td>Name</td>
+            <td>Address</td>
+            <td>Role</td>
+            <td>Rights</td>
+          </tr>
+          </thead>
+          <tbody>
+          {users}
+          </tbody>
+        </table>
+
         <form onSubmit={this.onSubmit}>
           <h4>Want to try your luck?</h4>
           <div>
